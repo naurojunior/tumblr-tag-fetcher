@@ -1,4 +1,3 @@
-const fs = require('fs');
 const fetch = require('node-fetch');
 const apiKey = require('./credentials/tumblr.json').apiKey
 
