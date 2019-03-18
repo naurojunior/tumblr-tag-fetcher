@@ -2,35 +2,57 @@ const fs = require('fs');
 const fetch = require('node-fetch');
 const apiKey = require('./credentials/tumblr.json').apiKey
 
-function start(tumblr, tag, apiKey){
+async function start(tumblr, tag, apiKey){
+	let fetchedResponse = await fetchContent(tumblr, tag, apiKey);
+	const json = await fetchedResponse.json();
+	const response = json.response;
 
-fetch('https://api.tumblr.com/v2/blog/' + tumblr + '.tumblr.com/posts?tag=' + tag + '&limit=20&offset=0&api_key=' + apiKey)
-    .then(res => res.json())
-    .then(json => {
-    	json.response.posts.forEach(val => {
-    		if(val.type == 'photo'){
-    			fs.appendFile('posts.txt', 'Data: ' + val.date + ' <br /><br /><img src="' + val.photos[0].original_size.url + '"/>' + '<br /><br />\r\n', function (err) {
-				  if (err) throw err;
-				  console.log('Saved!');
-				});
-    		}else if(val.type == 'text'){
-    			console.log(val)
-    			fs.appendFile('posts.txt', '\r\n' + 'Data: ' + val.date + '  <br /><br /><p style="text-align: justify">' + val.body + '</p><br /><br />\r\n', function (err) {
-				  if (err) throw err;
-				  console.log('Saved!');
-				});
-    		}else if(val.type == 'quote'){
-    			fs.appendFile('posts.txt', '\r\n' + 'Data: ' + val.date + '  <br /><br /><p style="text-align: justify">' +  val.text + '</p><br /><br />\r\n', function (err) {
-				  if (err) throw err;
-				  console.log('Saved!');
-				});
-    		}else{
-    			//console.log(val)
-    		}
-    	})
-    });
+	const totalPosts = response.total_posts;
+	const posts = response.posts;
+
+	//Tumblr accepts max 20 posts each request
+	const numberOfRequests = Math.ceil(totalPosts/20);
+
+	let requestsResults = [];
+
+	for(let i = 0; i < numberOfRequests; i++){
+		requestsResults.push(await requestPosts(numberOfRequests, tumblr, tag, apiKey, i));
+	}
+
+	console.log(requestsResults);
+
+
 }
 
+async function fetchContent(tumblr, tag, apiKey, offset = 0){
+	return fetch('https://api.tumblr.com/v2/blog/' + tumblr + '.tumblr.com/posts?tag=' + tag + '&limit=20&offset=' + offset + '&api_key=' + apiKey)
+}
 
+async function requestPosts(numberOfRequests, tumblr, tag, apiKey, currentRequest = 0){
+	let fetchedResponse = await fetchContent(tumblr, tag, apiKey, currentRequest*20);
+	const json = await fetchedResponse.json();
+	const response = json.response;
+	const posts = response.posts;
 
-start(tumblr, tag, apiKey)
+	let tempResults = []
+
+	posts.forEach(val => {
+		if(val.type == 'photo'){
+			tempResults.push({date: val.date, content: val.photos[0].original_size.url});
+		}else if(val.type == 'text'){
+			tempResults.push({date: val.date, content: val.body});
+		}else if(val.type == 'quote'){
+			tempResults.push({date: val.date, content: val.text});
+		}else{
+    	}
+    })
+
+	return tempResults;
+
+}
+
+let args = process.argv;
+let tumblr = args[2];
+let tag = args[3];
+
+let results = start(tumblr, tag, apiKey);
